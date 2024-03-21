@@ -9,94 +9,88 @@ import PIL.ImageGrab as ImageGrab
 from PIL import Image, ImageOps
 from tensorflow.keras.utils import img_to_array 
 
-# Labels for classification
-y_labels = ["*Not Found*", "*Found Satchel*"]
+# Define labels for the classification
+object_labels = ["*Not Found*", "*Found Satchel*"]
 
-# Load the trained model
-model = tf.keras.models.load_model("path/to/saved_model")
+# Load the pre-trained machine learning model
+model_path = "path/to/saved_model"
+model = tf.keras.models.load_model(model_path)
 
-# Print model summary
+# Print summary of the loaded model
+print("Loaded Machine Learning Model Summary:")
 print(model.summary())
 
-winlist = []
+# List to store window handles and titles
+window_list = []
 
 class ScreenCapture:
     def __init__(self):
-        # Define bounding box for screen capture
-        Bbox = (620, 300, 950, 775)  # Format: (left, upper, right, lower)
+        # Define the area of the screen to capture
+        capture_area = (620, 300, 950, 775)  # Format: (left, upper, right, lower)
         
-        # Name of the target window
-        screen_name = 'ROSHTEIN - Twitch - Google Chrome'
+        # Define the name of the window to capture
+        window_name = 'Window Title Here'
         
-        # Get list of available screens
-        screens = self.get_screens(screen_name)
+        # Get list of specific window - windows[0][0] - is the window that was specified
+        windows = self.find_windows(window_name)
         
-        # Counter for file naming
-        i = 5330
+        # Counter for image naming
+        image_counter = 0
         
-        # Print available screens
-        print(screens)
+        # Print available windows
+        print("Available Windows:")
+        print(windows)
         
-        # Print dimensions of the target window
-        print(win32gui.GetWindowRect(screens[0][0]))
-        
-        # Main loop for screen capturing and prediction
-        cont = True
-        while cont:
-            window = screens[0][0]
-            img = None
-            org_img = None
+        # Main loop for capturing and analyzing screens
+        while True:
             try:
-                win32gui.SetForegroundWindow(window)
-                org_img = ImageGrab.grab(bbox=Bbox)
+                # Set the target window as the foreground window
+                win32gui.SetForegroundWindow(windows[0][0])
                 
-                # Preprocess image for model input
-                img = ImageOps.grayscale(org_img)
-                img = img.resize((224, 224))
-                img = img_to_array(img) 
-                img = img.reshape(-1, 224, 224, 1)
+                # Capture the screen within the defined area
+                original_image = ImageGrab.grab(bbox=capture_area)
                 
-                # Make prediction
-                predictions = model.predict(img)
-                score = tf.nn.softmax(predictions)
+                # Preprocess the image for analysis
+                grayscale_image = ImageOps.grayscale(original_image)
+                resized_image = grayscale_image.resize((224, 224))
+                input_image = img_to_array(resized_image).reshape(-1, 224, 224, 1)
                 
-                # Print prediction result
-                print("This image most likely belongs to", y_labels[np.argmax(score)], "with a confidence of", 100 * np.max(score), "percent.")
+                # Make a prediction using the machine learning model
+                predictions = model.predict(input_image)
+                confidence = 100 * np.max(tf.nn.softmax(predictions))
+                predicted_label = object_labels[np.argmax(predictions)]
                 
-                # Save image if satchel is found
-                # (Or do whatever you need if the snachet is found)
-                if y_labels[np.argmax(score)] == "*Found Satchel*":
-                    org_img.save('path/to/save/false_positives/%s.png' % i)
-                    time.sleep(3)
-            except:
-                print(window)
-                print("There was an error... Wrong window selected")
+                # Print the prediction result
+                print("Predicted Object:", predicted_label)
+                print("Confidence:", confidence, "%")
+                
+                # Save the original image if a satchel is found
+                if predicted_label == "*Found Satchel*":
+                    original_image.save('path/to/save/satchel_images/%s.png' % image_counter)
+                    time.sleep(3)  # Pause for 3 seconds to prevent rapid image saving
+                
+                # Increment the image counter
+                image_counter += 1
             
-            # Pause before next iteration
+            except pywintypes.error:
+                print("Error: Wrong window selected or window closed.")
+                break
+            
+            # Pause for 1 second before the next iteration
             time.sleep(1)
-            i += 1
             
-    def enter_text(self):
-        # Function to enter text
-        pyautogui.moveTo(1645, 965)
-        pyautogui.click()
-        pyautogui.write("roshGold", interval=0.1)
-        pyautogui.press('enter')
-    
-    def get_screens(self, screen_name):
-        # Function to get available screens
-        win32gui.EnumWindows(enum_cb, winlist)
-        screens = [(hwnd, title) for hwnd, title in winlist if screen_name in title]
-        while len(screens) == 0:
-            screens = [(hwnd, title) for hwnd, title in winlist if screen_name in title]
-            win32gui.EnumWindows(enum_cb, winlist)
+    def find_windows(self, window_name):
+        # Function to find windows with the specified name
+        win32gui.EnumWindows(self.enum_windows_callback, window_list)
+        matching_windows = [(hwnd, title) for hwnd, title in window_list if window_name in title]
+        while not matching_windows:
+            win32gui.EnumWindows(self.enum_windows_callback, window_list)
+            matching_windows = [(hwnd, title) for hwnd, title in window_list if window_name in title]
+        return matching_windows
 
-        return screens
+    def enum_windows_callback(self, hwnd, results):
+        # Callback function to enumerate windows
+        results.append((hwnd, win32gui.GetWindowText(hwnd)))
 
-def enum_cb(hwnd, results):
-    # Callback function for enumerating windows
-    winlist.append((hwnd, win32gui.GetWindowText(hwnd)))
-    
-# Initialize ScreenCapture object
+# Initialize the ScreenCapture class to start capturing screens
 ScreenCapture()
-
